@@ -1,0 +1,39 @@
+// Définition des constantes
+#define MAX_FILENAME 50
+#define MAX_FILES 100
+#define MAX_RECORDS 1000
+
+// Structure pour un enregistrement
+typedef struct {
+    int id;
+    // Ajoutez d'autres champs selon vos besoins
+    char isDeleted;  // Pour la suppression logique
+} Record;
+
+// Structure pour les métadonnées
+typedef struct {
+    char filename[MAX_FILENAME];
+    int numBlocks;
+    int numRecords;
+    int firstBlockAddress;
+    char globalOrganization;  // 'C' pour contiguë, 'L' pour chaînée
+    char internalOrganization;  // 'T' pour trié, 'N' pour non-trié
+} Metadata;
+
+// Structure pour un bloc
+typedef struct {
+    Record* records;
+    int numRecords;
+    int nextBlock;  // Pour l'organisation chaînée
+    char filename[MAX_FILENAME];  // Pour identifier à quel fichier appartient le bloc
+} Block;
+
+// Structure principale pour la mémoire secondaire
+typedef struct {
+    Block* blocks;
+    int totalBlocks;
+    int blockSize;  // Facteur de blocage
+    char* allocationTable;  // '0' pour libre, '1' pour occupé
+    Metadata* fileMetadata;
+    int numFiles;
+} SecondaryMemory;
