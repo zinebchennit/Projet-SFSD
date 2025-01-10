@@ -32,6 +32,116 @@ typedef struct {
 typedef struct {
     Block* blocks;
     int totalBlocks;
+// Fonction d'initialisation de la mémoire secondaire
+void initializeSecondaryMemory(SecondaryMemory* sm, int numBlocks, int blockSize) {
+    sm->totalBlocks = numBlocks;
+    sm->blockSize = blockSize;
+    sm->numFiles = 0;
+    
+    // Allocation de la table d'allocation
+    sm->allocationTable = (char*)malloc(numBlocks * sizeof(char));
+    for(int i = 0; i < numBlocks; i++) {
+        sm->allocationTable[i] = '0';  // Tous les blocs sont libres
+    }
+    
+    // Allocation des blocs
+    sm->blocks = (Block*)malloc(numBlocks * sizeof(Block));
+    for(int i = 0; i < numBlocks; i++) {
+        sm->blocks[i].records = (Record*)malloc(blockSize * sizeof(Record));
+        sm->blocks[i].numRecords = 0;
+        sm->blocks[i].nextBlock = -1;
+    }
+    
+    // Allocation du tableau de métadonnées
+    sm->fileMetadata = (Metadata*)malloc(MAX_FILES * sizeof(Metadata));
+}
+
+// Fonction pour créer un nouveau fichier
+int createFile(SecondaryMemory* sm, const char* filename, int numRecords, 
+               char globalOrg, char internalOrg) {
+    if(sm->numFiles >= MAX_FILES) {
+        printf("Erreur: Nombre maximum de fichiers atteint\n");
+        return -1;
+    }
+    
+    // Calcul du nombre de blocs nécessaires
+    int blocksNeeded = (numRecords + sm->blockSize - 1) / sm->blockSize;
+    
+    // Vérification de l'espace disponible
+    int freeBlocks = 0;
+    for(int i = 0; i < sm->totalBlocks; i++) {
+        if(sm->allocationTable[i] == '0') freeBlocks++;
+    }
+    
+    if(freeBlocks < blocksNeeded) {
+        printf("Erreur: Espace insuffisant\n");
+        return -1;
+    }
+    
+    // Création des métadonnées
+    Metadata* meta = &sm->fileMetadata[sm->numFiles];
+    strcpy(meta->filename, filename);
+    meta->numBlocks = blocksNeeded;
+    meta->numRecords = numRecords;
+    meta->globalOrganization = globalOrg;
+    meta->internalOrganization = internalOrg;
+    
+    // Allocation des blocs selon l'organisation
+    if(globalOrg == 'C') {
+        // Organisation contiguë
+        int startBlock = -1;
+        int consecutiveBlocks = 0;
+        
+        // Recherche de blocs contigus
+        for(int i = 0; i < sm->totalBlocks; i++) {
+            if(sm->allocationTable[i] == '0') {
+                if(startBlock == -1) startBlock = i;
+                consecutiveBlocks++;
+                if(consecutiveBlocks == blocksNeeded) break;
+            } else {
+                startBlock = -1;
+                consecutiveBlocks = 0;
+            }
+        }
+        
+        if(consecutiveBlocks < blocksNeeded) {
+            printf("Erreur: Fragmentation, compactage necessaire\n");
+            return -1;
+        }
+        
+        // Allocation des blocs
+        meta->firstBlockAddress = startBlock;
+        for(int i = 0; i < blocksNeeded; i++) {
+            sm->allocationTable[startBlock + i] = '1';
+            strcpy(sm->blocks[startBlock + i].filename, filename);
+        }
+    } else {
+        // Organisation chaînée
+        int firstBlock = -1;
+        int prevBlock = -1;
+        int allocatedBlocks = 0;
+        
+        for(int i = 0; i < sm->totalBlocks && allocatedBlocks < blocksNeeded; i++) {
+            if(sm->allocationTable[i] == '0') {
+                sm->allocationTable[i] = '1';
+                strcpy(sm->blocks[i].filename, filename);
+                
+                if(firstBlock == -1) firstBlock = i;
+                if(prevBlock != -1) {
+                    sm->blocks[prevBlock].nextBlock = i;
+                }
+                prevBlock = i;
+                allocatedBlocks++;
+            }
+        }
+        
+        meta->firstBlockAddress = firstBlock;
+        sm->blocks[prevBlock].nextBlock = -1;
+    }
+    
+    sm->numFiles++;
+    return 0;
+}
     int blockSize;  // Facteur de blocage
     char* allocationTable;  // '0' pour libre, '1' pour occupé
     Metadata* fileMetadata;
