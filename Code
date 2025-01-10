@@ -56,6 +56,30 @@ void initializeSecondaryMemory(SecondaryMemory* sm, int numBlocks, int blockSize
     sm->fileMetadata = (Metadata*)malloc(MAX_FILES * sizeof(Metadata));
 }
 
+// Fonction d'initialisation de la mémoire secondaire
+void initializeSecondaryMemory(SecondaryMemory* sm, int numBlocks, int blockSize) {
+    sm->totalBlocks = numBlocks;
+    sm->blockSize = blockSize;
+    sm->numFiles = 0;
+    
+    // Allocation de la table d'allocation
+    sm->allocationTable = (char*)malloc(numBlocks * sizeof(char));
+    for(int i = 0; i < numBlocks; i++) {
+        sm->allocationTable[i] = '0';  // Tous les blocs sont libres
+    }
+    
+    // Allocation des blocs
+    sm->blocks = (Block*)malloc(numBlocks * sizeof(Block));
+    for(int i = 0; i < numBlocks; i++) {
+        sm->blocks[i].records = (Record*)malloc(blockSize * sizeof(Record));
+        sm->blocks[i].numRecords = 0;
+        sm->blocks[i].nextBlock = -1;
+    }
+    
+    // Allocation du tableau de métadonnées
+    sm->fileMetadata = (Metadata*)malloc(MAX_FILES * sizeof(Metadata));
+}
+
 // Fonction pour créer un nouveau fichier
 int createFile(SecondaryMemory* sm, const char* filename, int numRecords, 
                char globalOrg, char internalOrg) {
@@ -142,8 +166,3 @@ int createFile(SecondaryMemory* sm, const char* filename, int numRecords,
     sm->numFiles++;
     return 0;
 }
-    int blockSize;  // Facteur de blocage
-    char* allocationTable;  // '0' pour libre, '1' pour occupé
-    Metadata* fileMetadata;
-    int numFiles;
-} SecondaryMemory;
