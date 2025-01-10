@@ -148,6 +148,127 @@ int createFile(SecondaryMemory* sm, const char* filename, int numRecords,
     sm->numFiles++;
     return 0;
 } 
+
+// Fonction pour rechercher un enregistrement par ID
+void searchRecord(SecondaryMemory* sm, const char* filename, int id) {
+    // Recherche des métadonnées du fichier
+    int fileIndex = -1;
+    for(int i = 0; i < sm->numFiles; i++) {
+        if(strcmp(sm->fileMetadata[i].filename, filename) == 0) {
+            fileIndex = i;
+            break;
+        }
+    }
+    
+    if(fileIndex == -1) {
+        printf("Erreur: Fichier non trouve\n");
+        return;
+    }
+    
+    Metadata* meta = &sm->fileMetadata[fileIndex];
+    int currentBlock = meta->firstBlockAddress;
+    
+    while(currentBlock != -1) {
+        Block* block = &sm->blocks[currentBlock];
+        
+        // Recherche dans le bloc
+        for(int i = 0; i < block->numRecords; i++) {
+            if(block->records[i].id == id && !block->records[i].isDeleted) {
+                printf("Enregistrement trouve dans le bloc %d, position %d\n", 
+                       currentBlock, i);
+                return;
+            }
+        }
+        
+        // Passage au bloc suivant
+        if(meta->globalOrganization == 'C') {
+            currentBlock++;
+            if(currentBlock >= meta->firstBlockAddress + meta->numBlocks) break;
+        } else {
+            currentBlock = sm->blocks[currentBlock].nextBlock;
+        }
+    }
+    
+    printf("Enregistrement non trouve\n");
+}
+
+// Fonction pour l'insertion d'un nouvel enregistrement
+int insertRecord(SecondaryMemory* sm, const char* filename, Record newRecord) {
+    // Recherche des métadonnées du fichier
+    int fileIndex = -1;
+    for(int i = 0; i < sm->numFiles; i++) {
+        if(strcmp(sm->fileMetadata[i].filename, filename) == 0) {
+            fileIndex = i;
+            break;
+        }
+    }
+    
+    if(fileIndex == -1) {
+        printf("Erreur: Fichier non trouve\n");
+        return -1;
+    }
+    
+    Metadata* meta = &sm->fileMetadata[fileIndex];
+    int currentBlock = meta->firstBlockAddress;
+    
+    // Pour l'organisation interne triée
+    if(meta->internalOrganization == 'T') {
+        // Trouver la position d'insertion
+        while(currentBlock != -1) {
+            Block* block = &sm->blocks[currentBlock];
+            
+            // Recherche de la position dans le bloc
+            int pos = 0;
+            while(pos < block->numRecords && block->records[pos].id < newRecord.id) {
+                pos++;
+            }
+            
+            if(block->numRecords < sm->blockSize) {
+                // Il y a de la place dans ce bloc
+                // Décalage des enregistrements
+                for(int i = block->numRecords; i > pos; i--) {
+                    block->records[i] = block->records[i-1];
+                }
+                block->records[pos] = newRecord;
+                block->numRecords++;
+                meta->numRecords++;
+                return 0;
+            }
+            
+            // Passage au bloc suivant
+            if(meta->globalOrganization == 'C') {
+                currentBlock++;
+                if(currentBlock >= meta->firstBlockAddress + meta->numBlocks) break;
+            } else {
+                currentBlock = sm->blocks[currentBlock].nextBlock;
+            }
+        }
+    } else {
+        // Organisation non triée - insertion à la première place libre
+        while(currentBlock != -1) {
+            Block* block = &sm->blocks[currentBlock];
+            
+            if(block->numRecords < sm->blockSize) {
+                block->records[block->numRecords] = newRecord;
+                block->numRecords++;
+                meta->numRecords++;
+                return 0;
+            }
+            
+            // Passage au bloc suivant
+            if(meta->globalOrganization == 'C') {
+                currentBlock++;
+                if(currentBlock >= meta->firstBlockAddress + meta->numBlocks) break;
+            } else {
+                currentBlock = sm->blocks[currentBlock].nextBlock;
+            }
+        }
+    }
+    
+    printf("Erreur: Plus d'espace disponible dans le fichier\n");
+    return -1;
+}
+
 // Fonction pour la suppression logique d'un enregistrement
 void deleteRecordLogical(SecondaryMemory* sm, const char* filename, int id) {
     // Recherche des métadonnées du fichier
@@ -245,6 +366,7 @@ void compactMemory(SecondaryMemory* sm) {
     memcpy(sm->fileMetadata, tempMetadata, sm->numFiles * sizeof(Metadata));
     free(tempMetadata);
 }
+
 // Fonction pour afficher l'état de la mémoire secondaire
 void displayMemoryState(SecondaryMemory* sm) {
     printf("\nEtat de la memoire secondaire:\n");
@@ -349,6 +471,7 @@ void defragmentFile(SecondaryMemory* sm, const char* filename) {
     // Création d'un tableau temporaire pour stocker les enregistrements valides
     Record* tempRecords = (Record*)malloc(meta->numRecords * sizeof(Record));
     int validCount = 0;
+
 // Collecte des enregistrements valides
     int currentBlock = meta->firstBlockAddress;
     while(currentBlock != -1) {
@@ -485,6 +608,7 @@ void clearSecondaryMemory(SecondaryMemory* sm) {
     for(int i = 0; i < sm->totalBlocks; i++) {
         sm->allocationTable[i] = '0';
     }
+
  // Réinitialiser les blocs
     for(int i = 0; i < sm->totalBlocks; i++) {
         sm->blocks[i].numRecords = 0;
