@@ -165,4 +165,101 @@ int createFile(SecondaryMemory* sm, const char* filename, int numRecords,
     
     sm->numFiles++;
     return 0;
+} 
+// Fonction pour la suppression logique d'un enregistrement
+void deleteRecordLogical(SecondaryMemory* sm, const char* filename, int id) {
+    // Recherche des métadonnées du fichier
+    int fileIndex = -1;
+    for(int i = 0; i < sm->numFiles; i++) {
+        if(strcmp(sm->fileMetadata[i].filename, filename) == 0) {
+            fileIndex = i;
+            break;
+        }
+    }
+    
+    if(fileIndex == -1) {
+        printf("Erreur: Fichier non trouve\n");
+        return;
+    }
+    
+    Metadata* meta = &sm->fileMetadata[fileIndex];
+    int currentBlock = meta->firstBlockAddress;
+    
+    while(currentBlock != -1) {
+        Block* block = &sm->blocks[currentBlock];
+        
+        // Recherche dans le bloc
+        for(int i = 0; i < block->numRecords; i++) {
+            if(block->records[i].id == id) {
+                block->records[i].isDeleted = 1;
+                printf("Enregistrement marque comme supprime\n");
+                return;
+            }
+        }
+        
+        // Passage au bloc suivant
+        if(meta->globalOrganization == 'C') {
+            currentBlock++;
+            if(currentBlock >= meta->firstBlockAddress + meta->numBlocks) break;
+        } else {
+            currentBlock = sm->blocks[currentBlock].nextBlock;
+        }
+    }
+    
+    printf("Enregistrement non trouve\n");
+}
+
+// Fonction pour le compactage de la mémoire secondaire
+void compactMemory(SecondaryMemory* sm) {
+    // Création d'une copie temporaire des métadonnées
+    Metadata* tempMetadata = (Metadata*)malloc(sm->numFiles * sizeof(Metadata));
+    memcpy(tempMetadata, sm->fileMetadata, sm->numFiles * sizeof(Metadata));
+    
+    // Réinitialisation de la table d'allocation
+    for(int i = 0; i < sm->totalBlocks; i++) {
+        sm->allocationTable[i] = '0';
+    }
+    
+    // Déplacement des fichiers vers le début
+    int currentBlock = 0;
+    for(int i = 0; i < sm->numFiles; i++) {
+        Metadata* meta = &tempMetadata[i];
+        int oldFirstBlock = meta->firstBlockAddress;
+        meta->firstBlockAddress = currentBlock;
+        
+        // Copie des blocs
+        if(meta->globalOrganization == 'C') {
+            // Organisation contiguë
+            for(int j = 0; j < meta->numBlocks; j++) {
+                memcpy(&sm->blocks[currentBlock + j], 
+                       &sm->blocks[oldFirstBlock + j], 
+                       sizeof(Block));
+                sm->allocationTable[currentBlock + j] = '1';
+            }
+        } else {
+            // Organisation chaînée
+            int oldBlock = oldFirstBlock;
+            int newBlock = currentBlock;
+            
+            while(oldBlock != -1) {
+                memcpy(&sm->blocks[newBlock], 
+                       &sm->blocks[oldBlock], 
+                       sizeof(Block));
+                sm->allocationTable[newBlock] = '1';
+                
+                if(sm->blocks[oldBlock].nextBlock != -1) {
+                    sm->blocks[newBlock].nextBlock = newBlock + 1;
+                    newBlock++;
+                }
+                oldBlock = sm->blocks[oldBlock].nextBlock;
+            }
+            currentBlock = newBlock;
+        }
+        
+        currentBlock += meta->numBlocks;
+    }
+    
+    // Mise à jour des métadonnées
+    memcpy(sm->fileMetadata, tempMetadata, sm->numFiles * sizeof(Metadata));
+    free(tempMetadata);
 }
