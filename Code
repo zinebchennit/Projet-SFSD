@@ -480,3 +480,146 @@ void clearSecondaryMemory(SecondaryMemory* sm) {
     for(int i = 0; i < sm->totalBlocks; i++) {
         sm->allocationTable[i] = '0';
     }
+ // Réinitialiser les blocs
+    for(int i = 0; i < sm->totalBlocks; i++) {
+        sm->blocks[i].numRecords = 0;
+        sm->blocks[i].nextBlock = -1;
+        sm->blocks[i].filename[0] = '\0';
+    }
+    
+    // Réinitialiser les métadonnées
+    sm->numFiles = 0;
+    
+    printf("Memoire secondaire videe\n");
+}
+
+// Fonction principale avec menu
+int main() {
+    SecondaryMemory sm;
+    int choice;
+    char filename[MAX_FILENAME];
+    int numRecords, id;
+    char globalOrg, internalOrg;
+    
+    printf("Initialisation de la memoire secondaire\n");
+    printf("Nombre de blocs: ");
+    int numBlocks;
+    scanf("%d", &numBlocks);
+    printf("Taille des blocs (facteur de blocage): ");
+    int blockSize;
+    scanf("%d", &blockSize);
+    
+    initializeSecondaryMemory(&sm, numBlocks, blockSize);
+    
+    do {
+        printf("\nMenu Principal:\n");
+        printf("1. Creer un fichier\n");
+        printf("2. Afficher l'etat de la memoire\n");
+        printf("3. Afficher les metadonnees\n");
+        printf("4. Rechercher un enregistrement\n");
+        printf("5. Inserer un enregistrement\n");
+        printf("6. Supprimer un enregistrement\n");
+        printf("7. Defragmenter un fichier\n");
+        printf("8. Supprimer un fichier\n");
+        printf("9. Renommer un fichier\n");
+        printf("10. Compacter la memoire\n");
+        printf("11. Vider la memoire\n");
+        printf("0. Quitter\n");
+        printf("Choix: ");
+        scanf("%d", &choice);
+        
+        switch(choice) {
+            case 1:
+                printf("Nom du fichier: ");
+                scanf("%s", filename);
+                printf("Nombre d'enregistrements: ");
+                scanf("%d", &numRecords);
+                printf("Organisation globale (C/L): ");
+                scanf(" %c", &globalOrg);
+                printf("Organisation interne (T/N): ");
+                scanf(" %c", &internalOrg);
+                createFile(&sm, filename, numRecords, globalOrg, internalOrg);
+                break;
+                
+            case 2:
+                displayMemoryState(&sm);
+                break;
+                
+            case 3:
+                displayMetadata(&sm);
+                break;
+                
+            case 4:
+                printf("Nom du fichier: ");
+                scanf("%s", filename);
+                printf("ID de l'enregistrement: ");
+                scanf("%d", &id);
+                searchRecord(&sm, filename, id);
+                break;
+                
+            case 5:
+                printf("Nom du fichier: ");
+                scanf("%s", filename);
+                Record newRecord;
+                printf("ID du nouvel enregistrement: ");
+                scanf("%d", &newRecord.id);
+                newRecord.isDeleted = 0;
+                insertRecord(&sm, filename, newRecord);
+                break;
+                
+            case 6:
+                printf("Nom du fichier: ");
+                scanf("%s", filename);
+                printf(" ID de l'enregistrement: ");
+                scanf("%d", &id);
+                printf(" Type de suppression (1: Logique, 2: Physique): ");
+                int deleteType;
+                scanf("%d", &deleteType);
+                if(deleteType == 1)
+                    deleteRecordLogical(&sm, filename, id);
+                else
+                    deleteRecordPhysical(&sm, filename, id);
+                break;
+                
+            case 7:
+                printf(" Nom du fichier: ");
+                scanf("%s", filename);
+                defragmentFile(&sm, filename);
+                break;
+                
+            case 8:
+                printf("Nom du fichier: ");
+                scanf("%s", filename);
+                deleteFile(&sm, filename);
+                break;
+                
+            case 9:
+                printf(" Ancien nom: ");
+                scanf("%s", filename);
+                char newName[MAX_FILENAME];
+                printf(" Nouveau nom: ");
+                scanf("%s", newName);
+                renameFile(&sm, filename, newName);
+                break;
+                
+            case 10:
+                compactMemory(&sm);
+                break;
+                
+            case 11:
+                clearSecondaryMemory(&sm);
+                break;
+        }
+    } while(choice != 0);
+    
+    // Libération de la mémoire
+    for(int i = 0; i < sm.totalBlocks; i++) {
+        free(sm.blocks[i].records);
+    }
+    free(sm.blocks);
+    free(sm.allocationTable);
+    free(sm.fileMetadata);
+    
+    return 0;
+}
+   
