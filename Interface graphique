@@ -1,0 +1,202 @@
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { HardDrive, FilePlus, Search, Trash2, RefreshCw, FileText } from 'lucide-react';
+
+const FileSimulator = () => {
+  const [memory, setMemory] = useState({ blocks: [], numFiles: 0 });
+  const [initialized, setInitialized] = useState(false);
+  const [selectedOperation, setSelectedOperation] = useState(null);
+  const [formData, setFormData] = useState({
+    numBlocks: '',
+    blockSize: '',
+    filename: '',
+    numRecords: '',
+    globalOrg: 'C',
+    internalOrg: 'T',
+    recordId: ''
+  });
+
+  // Fonction pour générer une couleur aléatoire pour les fichiers
+  const getRandomColor = () => {
+    const colors = ['bg-blue-200', 'bg-green-200', 'bg-yellow-200', 'bg-red-200', 'bg-purple-200'];
+    return colors[Math.floor(Math.random() * colors.length)];
+  };
+
+  // Initialisation de la mémoire
+  const initializeMemory = () => {
+    const blocks = Array(parseInt(formData.numBlocks)).fill(null).map(() => ({
+      isFree: true,
+      filename: '',
+      color: ''
+    }));
+    setMemory({ blocks, numFiles: 0 });
+    setInitialized(true);
+  };
+
+  // Simulation de la création d'un fichier
+  const createFile = () => {
+    const newBlocks = [...memory.blocks];
+    const numBlocksNeeded = Math.ceil(parseInt(formData.numRecords) / parseInt(formData.blockSize));
+    const color = getRandomColor();
+    
+    let consecutiveBlocks = 0;
+    let startBlock = -1;
+    
+    for (let i = 0; i < newBlocks.length; i++) {
+      if (newBlocks[i].isFree) {
+        if (startBlock === -1) startBlock = i;
+        consecutiveBlocks++;
+        if (consecutiveBlocks === numBlocksNeeded) break;
+      } else {
+        startBlock = -1;
+        consecutiveBlocks = 0;
+      }
+    }
+
+    if (consecutiveBlocks === numBlocksNeeded) {
+      for (let i = 0; i < numBlocksNeeded; i++) {
+        newBlocks[startBlock + i] = {
+          isFree: false,
+          filename: formData.filename,
+          color
+        };
+      }
+      setMemory({ blocks: newBlocks, numFiles: memory.numFiles + 1 });
+    }
+  };
+
+  // Interface utilisateur
+  return (
+    <div className="p-4 max-w-4xl mx-auto">
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <HardDrive className="h-6 w-6" />
+            Simulateur de Gestion de Fichiers
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!initialized ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Nombre de blocs</label>
+                  <Input
+                    type="number"
+                    value={formData.numBlocks}
+                    onChange={(e) => setFormData({...formData, numBlocks: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Taille des blocs</label>
+                  <Input
+                    type="number"
+                    value={formData.blockSize}
+                    onChange={(e) => setFormData({...formData, blockSize: e.target.value})}
+                  />
+                </div>
+              </div>
+              <Button onClick={initializeMemory} className="w-full">
+                Initialiser la mémoire
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  onClick={() => setSelectedOperation('create')}
+                  className="flex items-center gap-2"
+                >
+                  <FilePlus className="h-4 w-4" /> Créer un fichier
+                </Button>
+                <Button
+                  onClick={() => setSelectedOperation('search')}
+                  className="flex items-center gap-2"
+                >
+                  <Search className="h-4 w-4" /> Rechercher
+                </Button>
+                <Button
+                  onClick={() => setSelectedOperation('delete')}
+                  className="flex items-center gap-2"
+                >
+                  <Trash2 className="h-4 w-4" /> Supprimer
+                </Button>
+                <Button
+                  onClick={() => setSelectedOperation('compact')}
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" /> Compacter
+                </Button>
+              </div>
+
+              {selectedOperation === 'create' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Nom du fichier</label>
+                      <Input
+                        value={formData.filename}
+                        onChange={(e) => setFormData({...formData, filename: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Nombre d'enregistrements</label>
+                      <Input
+                        type="number"
+                        value={formData.numRecords}
+                        onChange={(e) => setFormData({...formData, numRecords: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Organisation globale</label>
+                      <select
+                        className="w-full border rounded p-2"
+                        value={formData.globalOrg}
+                        onChange={(e) => setFormData({...formData, globalOrg: e.target.value})}
+                      >
+                        <option value="C">Contiguë</option>
+                        <option value="L">Chaînée</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Organisation interne</label>
+                      <select
+                        className="w-full border rounded p-2"
+                        value={formData.internalOrg}
+                        onChange={(e) => setFormData({...formData, internalOrg: e.target.value})}
+                      >
+                        <option value="T">Triée</option>
+                        <option value="N">Non triée</option>
+                      </select>
+                    </div>
+                  </div>
+                  <Button onClick={createFile} className="w-full">Créer le fichier</Button>
+                </div>
+              )}
+
+              <div className="grid grid-cols-10 gap-2">
+                {memory.blocks.map((block, index) => (
+                  <div
+                    key={index}
+                    className={`h-12 border rounded flex items-center justify-center text-xs
+                      ${block.isFree ? 'bg-gray-100' : block.color}`}
+                  >
+                    {!block.isFree && (
+                      <FileText className="h-4 w-4" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default FileSimulator;
