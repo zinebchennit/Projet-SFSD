@@ -240,3 +240,107 @@ void compactMemory(SecondaryMemory* sm) {
     memcpy(sm->fileMetadata, tempMetadata, sm->numFiles * sizeof(Metadata));
     free(tempMetadata);
 }
+// Fonction pour afficher l'état de la mémoire secondaire
+void displayMemoryState(SecondaryMemory* sm) {
+    printf("\nEtat de la memoire secondaire:\n");
+    for(int i = 0; i < sm->totalBlocks; i++) {
+        if(sm->allocationTable[i] == '0') {
+            printf("\033[32m[Libre]\033[0m ");  // Vert pour les blocs libres
+        } else {
+            printf("\033[31m[%s-%d]\033[0m ", 
+                   sm->blocks[i].filename, 
+                   sm->blocks[i].numRecords);  // Rouge pour les blocs occupés
+        }
+        if((i + 1) % 5 == 0) printf("\n");  // 5 blocs par ligne
+    }
+    printf("\n");
+}
+// Fonction pour afficher les métadonnées
+void displayMetadata(SecondaryMemory* sm) {
+    printf("\nMetadonnées des fichiers:\n");
+    printf("%-20s %-10s %-15s %-15s %-20s %-20s\n",
+           "Nom", "Blocs", "Enregistrements", "Premier bloc", "Org. Globale", "Org. Interne");
+    printf("--------------------------------------------------------------------------------\n");
+    
+    for(int i = 0; i < sm->numFiles; i++) {
+        Metadata* meta = &sm->fileMetadata[i];
+        printf("%-20s %-10d %-15d %-15d %-20c %-20c\n",
+               meta->filename,
+               meta->numBlocks,
+               meta->numRecords,
+               meta->firstBlockAddress,
+               meta->globalOrganization,
+               meta->internalOrganization);
+    }
+}
+
+// Fonction pour la suppression physique d'un enregistrement
+void deleteRecordPhysical(SecondaryMemory* sm, const char* filename, int id) {
+    int fileIndex = -1;
+    for(int i = 0; i < sm->numFiles; i++) {
+        if(strcmp(sm->fileMetadata[i].filename, filename) == 0) {
+            fileIndex = i;
+            break;
+        }
+    }
+    
+    if(fileIndex == -1) {
+        printf("Erreur: Fichier non trouve\n");
+        return;
+    }
+    
+    Metadata* meta = &sm->fileMetadata[fileIndex];
+    int currentBlock = meta->firstBlockAddress;
+    int found = 0;
+    
+    while(currentBlock != -1 && !found) {
+        Block* block = &sm->blocks[currentBlock];
+        
+        for(int i = 0; i < block->numRecords; i++) {
+            if(block->records[i].id == id) {
+                // Suppression physique - décalage des enregistrements
+                for(int j = i; j < block->numRecords - 1; j++) {
+                    block->records[j] = block->records[j + 1];
+                }
+                block->numRecords--;
+                meta->numRecords--;
+                found = 1;
+                break;
+            }
+        }
+        
+        if(meta->globalOrganization == 'C') {
+            currentBlock++;
+            if(currentBlock >= meta->firstBlockAddress + meta->numBlocks) break;
+        } else {
+            currentBlock = sm->blocks[currentBlock].nextBlock;
+        }
+    }
+    
+    if(found) {
+        printf("Enregistrement supprime physiquement\n");
+    } else {
+        printf("Enregistrement non trouve\n");
+    }
+}
+
+// Fonction pour défragmenter un fichier
+void defragmentFile(SecondaryMemory* sm, const char* filename) {
+    int fileIndex = -1;
+    for(int i = 0; i < sm->numFiles; i++) {
+        if(strcmp(sm->fileMetadata[i].filename, filename) == 0) {
+            fileIndex = i;
+            break;
+        }
+    }
+    
+    if(fileIndex == -1) {
+        printf("Erreur: Fichier non trouve\n");
+        return;
+    }
+    
+    Metadata* meta = &sm->fileMetadata[fileIndex];
+    
+    // Création d'un tableau temporaire pour stocker les enregistrements valides
+    Record* tempRecords = (Record*)malloc(meta->numRecords * sizeof(Record));
+    int validCount = 0;
