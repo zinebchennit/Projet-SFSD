@@ -32,29 +32,6 @@ typedef struct {
 typedef struct {
     Block* blocks;
     int totalBlocks;
-// Fonction d'initialisation de la mémoire secondaire
-void initializeSecondaryMemory(SecondaryMemory* sm, int numBlocks, int blockSize) {
-    sm->totalBlocks = numBlocks;
-    sm->blockSize = blockSize;
-    sm->numFiles = 0;
-    
-    // Allocation de la table d'allocation
-    sm->allocationTable = (char*)malloc(numBlocks * sizeof(char));
-    for(int i = 0; i < numBlocks; i++) {
-        sm->allocationTable[i] = '0';  // Tous les blocs sont libres
-    }
-    
-    // Allocation des blocs
-    sm->blocks = (Block*)malloc(numBlocks * sizeof(Block));
-    for(int i = 0; i < numBlocks; i++) {
-        sm->blocks[i].records = (Record*)malloc(blockSize * sizeof(Record));
-        sm->blocks[i].numRecords = 0;
-        sm->blocks[i].nextBlock = -1;
-    }
-    
-    // Allocation du tableau de métadonnées
-    sm->fileMetadata = (Metadata*)malloc(MAX_FILES * sizeof(Metadata));
-}
 
 // Fonction d'initialisation de la mémoire secondaire
 void initializeSecondaryMemory(SecondaryMemory* sm, int numBlocks, int blockSize) {
