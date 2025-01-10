@@ -344,3 +344,139 @@ void defragmentFile(SecondaryMemory* sm, const char* filename) {
     // Création d'un tableau temporaire pour stocker les enregistrements valides
     Record* tempRecords = (Record*)malloc(meta->numRecords * sizeof(Record));
     int validCount = 0;
+// Collecte des enregistrements valides
+    int currentBlock = meta->firstBlockAddress;
+    while(currentBlock != -1) {
+        Block* block = &sm->blocks[currentBlock];
+        
+        for(int i = 0; i < block->numRecords; i++) {
+            if(!block->records[i].isDeleted) {
+                tempRecords[validCount++] = block->records[i];
+            }
+        }
+        
+        if(meta->globalOrganization == 'C') {
+            currentBlock++;
+            if(currentBlock >= meta->firstBlockAddress + meta->numBlocks) break;
+        } else {
+            currentBlock = sm->blocks[currentBlock].nextBlock;
+        }
+    }
+    
+    // Réinitialisation des blocs
+    currentBlock = meta->firstBlockAddress;
+    int recordIndex = 0;
+    
+    while(currentBlock != -1 && recordIndex < validCount) {
+        Block* block = &sm->blocks[currentBlock];
+        block->numRecords = 0;
+        
+        // Remplissage du bloc avec les enregistrements valides
+        while(recordIndex < validCount && block->numRecords < sm->blockSize) {
+            block->records[block->numRecords++] = tempRecords[recordIndex++];
+        }
+        
+        if(meta->globalOrganization == 'C') {
+            currentBlock++;
+            if(currentBlock >= meta->firstBlockAddress + meta->numBlocks) break;
+        } else {
+            currentBlock = sm->blocks[currentBlock].nextBlock;
+        }
+    }
+    
+    meta->numRecords = validCount;
+    free(tempRecords);
+    printf("Defragmentation terminee\n");
+}
+
+// Fonction pour renommer un fichier
+void renameFile(SecondaryMemory* sm, const char* oldName, const char* newName) {
+    int fileIndex = -1;
+    
+    // Vérifier si le nouveau nom existe déjà
+    for(int i = 0; i < sm->numFiles; i++) {
+        if(strcmp(sm->fileMetadata[i].filename, newName) == 0) {
+            printf("Erreur: Le nouveau nom existe deja\n");
+            return;
+        }
+    }
+    
+    // Trouver le fichier à renommer
+    for(int i = 0; i < sm->numFiles; i++) {
+        if(strcmp(sm->fileMetadata[i].filename, oldName) == 0) {
+            fileIndex = i;
+            break;
+        }
+    }
+    
+    if(fileIndex == -1) {
+        printf("Erreur: Fichier non trouve\n");
+        return;
+    }
+    
+    // Mettre à jour le nom dans les métadonnées
+    strcpy(sm->fileMetadata[fileIndex].filename, newName);
+    
+    // Mettre à jour le nom dans les blocs
+    int currentBlock = sm->fileMetadata[fileIndex].firstBlockAddress;
+    while(currentBlock != -1) {
+        strcpy(sm->blocks[currentBlock].filename, newName);
+        
+        if(sm->fileMetadata[fileIndex].globalOrganization == 'C') {
+            currentBlock++;
+            if(currentBlock >= sm->fileMetadata[fileIndex].firstBlockAddress + 
+                              sm->fileMetadata[fileIndex].numBlocks) break;
+        } else {
+            currentBlock = sm->blocks[currentBlock].nextBlock;
+        }
+    }
+    
+    printf("Fichier renomme avec succes\n");
+}
+
+// Fonction pour supprimer un fichier
+void deleteFile(SecondaryMemory* sm, const char* filename) {
+    int fileIndex = -1;
+    for(int i = 0; i < sm->numFiles; i++) {
+        if(strcmp(sm->fileMetadata[i].filename, filename) == 0) {
+            fileIndex = i;
+            break;
+        }
+    }
+    
+    if(fileIndex == -1) {
+        printf("Erreur: Fichier non trouve\n");
+        return;
+    }
+    
+    // Libérer les blocs
+    int currentBlock = sm->fileMetadata[fileIndex].firstBlockAddress;
+    while(currentBlock != -1) {
+        sm->allocationTable[currentBlock] = '0';
+        
+        if(sm->fileMetadata[fileIndex].globalOrganization == 'C') {
+            currentBlock++;
+            if(currentBlock >= sm->fileMetadata[fileIndex].firstBlockAddress + 
+                              sm->fileMetadata[fileIndex].numBlocks) break;
+        } else {
+            int nextBlock = sm->blocks[currentBlock].nextBlock;
+            sm->blocks[currentBlock].nextBlock = -1;
+            currentBlock = nextBlock;
+        }
+    }
+    
+    // Décaler les métadonnées
+    for(int i = fileIndex; i < sm->numFiles - 1; i++) {
+        sm->fileMetadata[i] = sm->fileMetadata[i + 1];
+    }
+    sm->numFiles--;
+    
+    printf("Fichier supprime avec succes\n");
+}
+
+// Fonction pour vider la mémoire secondaire
+void clearSecondaryMemory(SecondaryMemory* sm) {
+    // Réinitialiser la table d'allocation
+    for(int i = 0; i < sm->totalBlocks; i++) {
+        sm->allocationTable[i] = '0';
+    }
