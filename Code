@@ -32,6 +32,11 @@ typedef struct {
 typedef struct {
     Block* blocks;
     int totalBlocks;
+    int blockSize;  // Facteur de blocage
+    char* allocationTable;  // '0' pour libre, '1' pour occupé
+    Metadata* fileMetadata;
+    int numFiles;
+} SecondaryMemory;
 
 // Fonction d'initialisation de la mémoire secondaire
 void initializeSecondaryMemory(SecondaryMemory* sm, int numBlocks, int blockSize) {
